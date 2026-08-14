@@ -6,6 +6,8 @@
  * it once idle, so cost is incurred only while it's actually in use.
  */
 
+import { recordGpuStart, recordGpuStop } from "./gpuSessions.js";
+
 const RUNPOD_API = "https://api.runpod.io/graphql";
 
 export interface GpuConfig {
@@ -45,6 +47,7 @@ export async function startGpu(config: GpuConfig): Promise<void> {
     config.apiKey,
     `mutation { podResume(input: {podId: "${config.podId}"}) { id desiredStatus } }`,
   );
+  recordGpuStart();
 }
 
 export async function stopGpu(config: GpuConfig): Promise<void> {
@@ -52,6 +55,7 @@ export async function stopGpu(config: GpuConfig): Promise<void> {
     config.apiKey,
     `mutation { podStop(input: {podId: "${config.podId}"}) { id desiredStatus } }`,
   );
+  recordGpuStop();
 }
 
 /** Polls until the pod reports RUNNING with an active runtime, or times out. */

@@ -1162,15 +1162,17 @@ Create a visual interface.
 
 Tasks:
 
-- [ ] Dashboard
-- [ ] Project list
-- [ ] Project details
-- [ ] Live logs
-- [ ] Task progress
-- [ ] Test results
-- [ ] Deployment status
-- [ ] Cost tracking
-- [ ] Approval controls
+- [x] Dashboard
+- [x] Project list
+- [x] Project details
+- [x] Live logs
+- [x] Task progress
+- [x] Test results
+- [x] Deployment status
+- [x] Cost tracking
+- [x] Approval controls
+
+See `docs/dashboard.md`, `apps/factory-api`, and `apps/control-panel`.
 
 ---
 

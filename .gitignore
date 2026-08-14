@@ -74,3 +74,7 @@ venv.bak/
 # Node
 node_modules/
 *.tsbuildinfo
+.next/
+
+# Hermes runtime state (GPU sessions, etc. — not source)
+/.hermes/
