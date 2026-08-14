@@ -16,7 +16,11 @@ const TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
   REVIEW: ["READY_TO_DEPLOY", "FIXING", "BLOCKED"],
   READY_TO_DEPLOY: ["DEPLOYING", "BLOCKED"],
   DEPLOYING: ["DEPLOYED", "FAILED_DEPLOYMENT", "BLOCKED"],
-  DEPLOYED: [],
+  // Not fully terminal: a deployed project starts a new BUILDING cycle for
+  // its next release (discovered in Phase 6 while proving redeploy/rollback
+  // — the original design treated DEPLOYED as an end state, which left no
+  // way to ship an update).
+  DEPLOYED: ["BUILDING"],
   FAILED_BUILD: ["BUILDING", "BLOCKED"],
   FAILED_TESTS: ["TESTING", "BLOCKED"],
   FAILED_DEPLOYMENT: ["DEPLOYING", "BLOCKED"],
