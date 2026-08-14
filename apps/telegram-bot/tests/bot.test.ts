@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { handleUpdate, type BotDeps } from "../src/bot.js";
 import type { TelegramClient, TelegramUpdate } from "../src/telegramClient.js";
 import type { FactoryClient } from "../src/factoryClient.js";
-import type { AIProvider } from "@hermes/ai";
 
 function makeUpdate(text: string, chatId = 123): TelegramUpdate {
   return {
@@ -29,13 +28,18 @@ function makeDeps(overrides: Partial<BotDeps> = {}): BotDeps & { sendMessage: Re
     runTests: vi.fn(async () => ({ outcome: "REVIEW", attempts: 1, reason: "ok" })),
     deploy: vi.fn(async () => ({ outcome: "DEPLOYED", url: "http://localhost:4001/", reason: "ok" })),
     stop: vi.fn(async () => ({ wasRunning: true, running: false })),
+    runAutonomous: vi.fn(async () => ({
+      projectName: "alpha-red",
+      outcome: "REVIEW",
+      attempts: 1,
+      reason: "All tests passed",
+      readyToDeploy: true,
+    })),
   } as unknown as FactoryClient;
-  const provider = { isAvailable: vi.fn(async () => false) } as unknown as AIProvider;
 
   return {
     telegram,
     factory,
-    provider,
     allowedChatIds: new Set([123]),
     sendMessage,
     ...overrides,
@@ -86,11 +90,35 @@ describe("handleUpdate", () => {
     });
   });
 
-  it("replies with an unrecognized message when natural language can't be parsed and no provider is available", async () => {
+  it("sends an immediate ack, then forwards natural language to the autonomous pipeline", async () => {
     const deps = makeDeps();
+    await handleUpdate(makeUpdate("Build me a landing page for Alpha Red"), deps);
+
+    expect((deps.factory as any).runAutonomous).toHaveBeenCalledWith("Build me a landing page for Alpha Red");
+    expect(deps.sendMessage).toHaveBeenCalledWith(123, expect.stringMatching(/planning and building/i));
+    expect(deps.sendMessage).toHaveBeenCalledWith(
+      123,
+      expect.stringContaining("REVIEW for \"alpha-red\" after 1 attempt(s)"),
+    );
+    expect(deps.sendMessage).toHaveBeenCalledWith(123, expect.stringContaining("/deploy alpha-red"));
+  });
+
+  it("replies with an unrecognized message when the planner declines the brief", async () => {
+    const deps = makeDeps();
+    (deps.factory as any).runAutonomous = vi.fn(async () => {
+      throw new Error("The brief doesn't look like a request to build something.");
+    });
     await handleUpdate(makeUpdate("hello there"), deps);
     expect(deps.sendMessage).toHaveBeenCalledWith(123, expect.stringContaining("couldn't understand"));
-    expect((deps.factory as any).createProject).not.toHaveBeenCalled();
+  });
+
+  it("turns a thrown pipeline error into a chat reply instead of crashing", async () => {
+    const deps = makeDeps();
+    (deps.factory as any).runAutonomous = vi.fn(async () => {
+      throw new Error("factory-api unreachable");
+    });
+    await handleUpdate(makeUpdate("Build me a shop"), deps);
+    expect(deps.sendMessage).toHaveBeenCalledWith(123, expect.stringContaining("factory-api unreachable"));
   });
 
   it("turns a thrown factory-api error into a chat reply instead of crashing", async () => {

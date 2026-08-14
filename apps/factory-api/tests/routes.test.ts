@@ -24,7 +24,24 @@ vi.mock("@hermes/testing", async (importOriginal) => {
   };
 });
 
+// Same reasoning as the @hermes/testing mock above: a real run shells out
+// to an AI provider plus npm/Docker — this only asserts the route's own
+// wiring (body validation, status codes, error mapping).
+vi.mock("@hermes/orchestrator", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@hermes/orchestrator")>();
+  return { ...actual, runAutonomousPipeline: vi.fn() };
+});
+
+// createProject wraps a real sandbox start (Docker) — kept real by default
+// (spyOn, not a full mock) so every other test exercises the real function;
+// one test below overrides it once to assert routes.ts's error handling
+// without depending on whether Docker happens to be available in whatever
+// environment the suite runs in.
+const projectsModule = await import("@hermes/projects");
+const createProjectSpy = vi.spyOn(projectsModule, "createProject");
+
 const { createRouter } = await import("../src/routes.js");
+const { runAutonomousPipeline } = await import("@hermes/orchestrator");
 
 const TEST_NAME = "test-factory-api-project";
 
@@ -82,15 +99,22 @@ describe("factory-api routes", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns a clean JSON error (not a stack trace) when project creation fails", async () => {
-    // No Docker in this environment -> createProject's sandbox step throws.
-    // This asserts the route never lets that leak as an unhandled 500 HTML page.
+  it("returns a clean JSON error (not a stack trace) when project creation throws unexpectedly", async () => {
+    // Forces the failure deterministically (e.g. Docker being unavailable
+    // would normally trigger this) rather than depending on whether Docker
+    // happens to be reachable in whatever environment the suite runs in.
+    // This asserts the route never lets an unexpected throw leak as an
+    // unhandled 500 HTML page.
+    createProjectSpy.mockImplementationOnce(() => {
+      throw new Error("sandbox failed to start");
+    });
+
     const res = await request(makeApp())
       .post("/projects")
-      .send({ name: "test-factory-api-create-project", type: "website" });
+      .send({ name: "test-factory-api-create-project-throws", type: "website" });
+
     expect(res.status).toBe(500);
-    expect(res.body).toHaveProperty("error");
-    fs.rmSync(projectDir("test-factory-api-create-project"), { recursive: true, force: true });
+    expect(res.body).toEqual({ error: "sandbox failed to start" });
   });
 
   it("runs the test cycle and returns its outcome", async () => {
@@ -107,5 +131,36 @@ describe("factory-api routes", () => {
     const res = await request(makeApp()).post(`/projects/${TEST_NAME}/stop`).send({});
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ wasRunning: false, running: false });
+  });
+
+  it("rejects an autonomous run with a missing brief", async () => {
+    const res = await request(makeApp()).post("/projects/autonomous").send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("runs the autonomous pipeline and returns its result", async () => {
+    vi.mocked(runAutonomousPipeline).mockResolvedValueOnce({
+      projectName: "alpha-red",
+      plan: { type: "website", projectName: "alpha-red", siteName: "Alpha Red", siteDescription: "d", pages: ["home"] },
+      outcome: "REVIEW",
+      attempts: 1,
+      reason: "All tests passed",
+      readyToDeploy: true,
+    });
+
+    const res = await request(makeApp()).post("/projects/autonomous").send({ brief: "Build me a landing page" });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ projectName: "alpha-red", outcome: "REVIEW", readyToDeploy: true });
+  });
+
+  it("returns 422 when the AI planner fails to produce a usable plan", async () => {
+    const { PlanningFailedError } = await import("@hermes/orchestrator");
+    vi.mocked(runAutonomousPipeline).mockRejectedValueOnce(new PlanningFailedError("no JSON object found"));
+
+    const res = await request(makeApp()).post("/projects/autonomous").send({ brief: "asdf" });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toContain("no JSON object found");
   });
 });

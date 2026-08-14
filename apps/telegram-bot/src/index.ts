@@ -1,6 +1,5 @@
 import { TelegramClient } from "./telegramClient.js";
 import { FactoryClient } from "./factoryClient.js";
-import { providerFromEnv } from "@hermes/ai";
 import { handleUpdate, type BotDeps } from "./bot.js";
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -27,7 +26,6 @@ if (allowedChatIds.size === 0) {
 const deps: BotDeps = {
   telegram: new TelegramClient(token),
   factory: new FactoryClient(process.env.FACTORY_API_URL ?? "http://localhost:4100"),
-  provider: providerFromEnv(),
   allowedChatIds,
 };
 

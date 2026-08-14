@@ -69,4 +69,12 @@ export class FactoryClient {
       body: JSON.stringify({ actor }),
     });
   }
+
+  /** Full Planner -> Builder -> Tester -> Debugger pipeline (roadmap §11). Never deploys on its own. */
+  runAutonomous(
+    brief: string,
+    maxAttempts?: number,
+  ): Promise<{ projectName: string; outcome: string; attempts: number; reason: string; readyToDeploy: boolean }> {
+    return this.request("/projects/autonomous", { method: "POST", body: JSON.stringify({ brief, maxAttempts }) });
+  }
 }

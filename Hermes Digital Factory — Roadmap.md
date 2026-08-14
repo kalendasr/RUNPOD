@@ -1250,26 +1250,32 @@ USER
  ↓
 IDEA
  ↓
-PLANNER
+PLANNER            [x] packages/orchestrator: brief -> manifest + requirements.md/architecture.md
  ↓
-ARCHITECT
+ARCHITECT          [x] folded into Planner's output (architecture.md) — see docs/orchestrator.md
  ↓
-BUILDER
+BUILDER            [x] deterministic: drives @hermes/website-factory / @hermes/saas-factory from the plan
  ↓
-TESTER
+TESTER             [x] packages/testing's existing BUILD->TEST->FIX cycle (Phase 5)
  ↓
-DEBUGGER
+DEBUGGER           [x] AIFixStrategy: real AI-proposed, path-safe, single-file fixes, re-verified by the cycle
  ↓
-SECURITY REVIEW
+SECURITY REVIEW    [x] packages/security's scanForSecrets(), enforced in the deploy pipeline (Phase 10)
  ↓
-HUMAN APPROVAL
+HUMAN APPROVAL     [x] pipeline stops at READY_TO_DEPLOY; deploy requires approve:true (Phase 8/9)
  ↓
-DEPLOYMENT
+DEPLOYMENT         [x] packages/deployment (Phase 6)
  ↓
-PRODUCTION
+PRODUCTION         [x] health check + smoke test (Phase 6)
 ```
 
-The factory should be capable of running multiple projects independently.
+The factory should be capable of running multiple projects independently. [x]
+Verified live: two autonomous pipelines run concurrently for different
+projects, both reaching READY_TO_DEPLOY with no shared state
+(packages/orchestrator/tests/concurrentProjects.integration.test.ts).
+
+See `docs/orchestrator.md`, `packages/orchestrator`, and
+`apps/factory-api`'s `POST /projects/autonomous`.
 
 ---
 

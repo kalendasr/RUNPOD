@@ -1,13 +1,10 @@
-import type { AIProvider } from "@hermes/ai";
 import type { TelegramClient, TelegramUpdate } from "./telegramClient.js";
 import type { FactoryClient } from "./factoryClient.js";
 import { parseCommand, type Command } from "./commands.js";
-import { parseNaturalLanguageIntent } from "./nlIntent.js";
 
 export interface BotDeps {
   telegram: TelegramClient;
   factory: FactoryClient;
-  provider: AIProvider;
   /** Chat IDs allowed to use the bot. Empty = fail closed, refuse everyone (see docs/security-model.md § Isolation). */
   allowedChatIds: Set<number>;
 }
@@ -22,13 +19,15 @@ const HELP_TEXT = `Hermes Digital Factory bot.
 /stop <name> — stop a running deployment
 /new <name> <website|saas|ecommerce|ai-saas> [feature ...] — create a project
 
-You can also just describe what you want, e.g. "Build me a landing page for Alpha Red".`;
+You can also just describe what you want, e.g. "Build me a landing page for
+Alpha Red" — this plans, scaffolds, builds, and tests a real project
+(takes a minute or two), stopping at READY_TO_DEPLOY for your approval.`;
 
 function formatSummaryLine(p: { name: string; status: string; taskProgress: { done: number; total: number } }): string {
   return `${p.name} — ${p.status} (${p.taskProgress.done}/${p.taskProgress.total} tasks)`;
 }
 
-async function handleCommand(command: Command, deps: BotDeps): Promise<string> {
+async function handleCommand(command: Exclude<Command, { type: "natural_language" }>, deps: BotDeps): Promise<string> {
   const { factory } = deps;
 
   switch (command.type) {
@@ -83,16 +82,32 @@ async function handleCommand(command: Command, deps: BotDeps): Promise<string> {
       const result = await factory.deploy(command.name, "telegram");
       return `${result.outcome}: ${result.reason}${result.url ? `\n${result.url}` : ""}`;
     }
-
-    case "natural_language": {
-      const parsed = await parseNaturalLanguageIntent(deps.provider, command.text);
-      if (parsed.kind === "unrecognized") {
-        return "I couldn't understand that as a build request. Try /help for commands, or be more specific (e.g. \"Build me a landing page for Alpha Red\").";
-      }
-      await factory.createProject(parsed.intent);
-      return `Created project "${parsed.intent.name}" (${parsed.intent.type}) with features: ${parsed.intent.features.join(", ") || "none"}.`;
-    }
   }
+}
+
+/**
+ * The full autonomous pipeline (roadmap §11) via `POST /projects/autonomous`
+ * — real npm install/build/E2E tests, so this routinely takes over a
+ * minute. Sends an immediate acknowledgment before the long-running call
+ * so the chat doesn't look stuck, then a second message with the result.
+ */
+async function handleNaturalLanguage(text: string, chatId: number, deps: BotDeps): Promise<void> {
+  await deps.telegram.sendMessage(chatId, "Got it — planning and building. This can take a minute or two...");
+
+  let reply: string;
+  try {
+    const result = await deps.factory.runAutonomous(text);
+    reply = `${result.outcome} for "${result.projectName}" after ${result.attempts} attempt(s)\n${result.reason}`;
+    if (result.readyToDeploy) {
+      reply += `\n\nREADY_TO_DEPLOY. Send /deploy ${result.projectName} to review and confirm.`;
+    }
+  } catch (err) {
+    reply = /brief doesn't look like a request to build something/i.test((err as Error).message)
+      ? "I couldn't understand that as a build request. Try /help for commands, or be more specific (e.g. \"Build me a landing page for Alpha Red\")."
+      : `Error: ${(err as Error).message}`;
+  }
+
+  await deps.telegram.sendMessage(chatId, reply);
 }
 
 export async function handleUpdate(update: TelegramUpdate, deps: BotDeps): Promise<void> {
@@ -108,6 +123,11 @@ export async function handleUpdate(update: TelegramUpdate, deps: BotDeps): Promi
   }
 
   const command = parseCommand(message.text);
+  if (command.type === "natural_language") {
+    await handleNaturalLanguage(command.text, chatId, deps);
+    return;
+  }
+
   let reply: string;
   try {
     reply = await handleCommand(command, deps);

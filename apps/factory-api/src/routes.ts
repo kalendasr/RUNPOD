@@ -18,7 +18,8 @@ import {
   containerName,
 } from "@hermes/deployment";
 import { runCycle, NoOpFixStrategy, realStepsFor, realLifecycleFor } from "@hermes/testing";
-import { podStatus, gpuConfigFromEnv, estimateGpuCost, readGpuSessions } from "@hermes/ai";
+import { podStatus, gpuConfigFromEnv, estimateGpuCost, readGpuSessions, providerFromEnv } from "@hermes/ai";
+import { runAutonomousPipeline, PlanningFailedError } from "@hermes/orchestrator";
 import { buildProjectSummary } from "./projectSummary.js";
 
 const VALID_TYPES: ProjectType[] = ["website", "saas", "ecommerce", "ai-saas"];
@@ -121,9 +122,12 @@ export function createRouter(): Router {
   });
 
   // Drives the bounded BUILD -> TEST -> FIX loop (docs/project-lifecycle.md,
-  // roadmap §15). No AI-driven fix strategy is wired in yet (see
-  // packages/testing/src/fixStrategy.ts) — a failing build/test just
-  // escalates to FAILED_BUILD/FAILED_TESTS rather than retrying blindly.
+  // roadmap §15) for a project that already exists. Deliberately uses
+  // NoOpFixStrategy, not the AI Debugger (@hermes/orchestrator) — this
+  // endpoint tests what's already on disk as-is; the AI Debugger only
+  // applies to a project the autonomous pipeline itself is driving (see
+  // POST /projects/autonomous below), so a manual /test run never has
+  // files rewritten out from under the caller.
   router.post("/projects/:name/test", async (req, res) => {
     const name = req.params.name;
     try {
@@ -158,6 +162,34 @@ export function createRouter(): Router {
     stopContainer(name);
     appendLog(name, { event: "container_stopped", actor: req.body?.actor ?? "api" });
     res.json({ container: containerName(name), wasRunning, running: isContainerRunning(name) });
+  });
+
+  // The full autonomous pipeline (roadmap §11): brief -> Planner -> Builder
+  // -> Tester -> AI Debugger. Stops at READY_TO_DEPLOY — never deploys on
+  // its own, same human-approval gate as every other entry point (see
+  // POST /projects/:name/deploy above).
+  router.post("/projects/autonomous", async (req, res) => {
+    const brief = req.body?.brief;
+    if (typeof brief !== "string" || !brief.trim()) {
+      res.status(400).json({ error: "Body must include a non-empty 'brief' string." });
+      return;
+    }
+
+    try {
+      const maxAttempts = Number(req.body?.maxAttempts ?? 5);
+      const result = await runAutonomousPipeline(providerFromEnv(), brief, { maxAttempts });
+      res.status(201).json(result);
+    } catch (err) {
+      if (err instanceof PlanningFailedError) {
+        res.status(422).json({ error: err.message });
+        return;
+      }
+      if (err instanceof ProjectExistsError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+      res.status(500).json({ error: (err as Error).message });
+    }
   });
 
   router.get("/gpu/status", async (_req, res) => {
