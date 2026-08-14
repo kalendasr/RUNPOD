@@ -72,10 +72,19 @@ export async function runE2ETests(name: string, port?: number): Promise<E2EResul
     stdio: ["ignore", "pipe", "pipe"],
   });
 
+  // A spawn failure (e.g. `next` not installed yet) emits an 'error' event
+  // asynchronously. With no listener, Node treats that as an uncaught
+  // exception and crashes the whole host process — not just this call.
+  // Race it against waitForServer so it becomes a normal StepResult
+  // failure instead, matching the TestSteps contract (never throws).
+  const spawnFailure = new Promise<never>((_, reject) => {
+    server.on("error", reject);
+  });
+
   let passed: boolean;
   let output: string;
   try {
-    await waitForServer(`http://localhost:${resolvedPort}`, 30_000);
+    await Promise.race([waitForServer(`http://localhost:${resolvedPort}`, 30_000), spawnFailure]);
     try {
       output = execFileSync("npx", ["playwright", "test"], {
         cwd,
@@ -89,6 +98,9 @@ export async function runE2ETests(name: string, port?: number): Promise<E2EResul
       output = `${e.stdout ?? ""}\n${e.stderr ?? ""}`;
       passed = false;
     }
+  } catch (err) {
+    passed = false;
+    output = `Server failed to start: ${(err as Error).message}`;
   } finally {
     server.kill("SIGTERM");
   }

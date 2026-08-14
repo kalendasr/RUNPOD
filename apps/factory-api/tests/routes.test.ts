@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import express from "express";
 import request from "supertest";
@@ -9,8 +9,22 @@ import {
   writeTasksFile,
   appendLog,
   projectDir,
+  transition,
 } from "@hermes/projects";
-import { createRouter } from "../src/routes.js";
+
+// Route-level test: exercises the /test endpoint's wiring, not runCycle's
+// internals (already covered by packages/testing's own tests) — a real
+// cycle would shell out to npm install/build against a project with no
+// app scaffolding, which is slow and belongs at the package level.
+vi.mock("@hermes/testing", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@hermes/testing")>();
+  return {
+    ...actual,
+    runCycle: vi.fn(async () => ({ outcome: "FAILED_BUILD", attempts: 1, reason: "stubbed for route test" })),
+  };
+});
+
+const { createRouter } = await import("../src/routes.js");
 
 const TEST_NAME = "test-factory-api-project";
 
@@ -61,5 +75,37 @@ describe("factory-api routes", () => {
     const res = await request(makeApp()).post(`/projects/${TEST_NAME}/deploy`).send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/approval/i);
+  });
+
+  it("rejects project creation with a missing/invalid type", async () => {
+    const res = await request(makeApp()).post("/projects").send({ name: "whatever" });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns a clean JSON error (not a stack trace) when project creation fails", async () => {
+    // No Docker in this environment -> createProject's sandbox step throws.
+    // This asserts the route never lets that leak as an unhandled 500 HTML page.
+    const res = await request(makeApp())
+      .post("/projects")
+      .send({ name: "test-factory-api-create-project", type: "website" });
+    expect(res.status).toBe(500);
+    expect(res.body).toHaveProperty("error");
+    fs.rmSync(projectDir("test-factory-api-create-project"), { recursive: true, force: true });
+  });
+
+  it("runs the test cycle and returns its outcome", async () => {
+    seedProject();
+    transition(TEST_NAME, "PLANNING", { reason: "test", actor: "test" });
+    transition(TEST_NAME, "APPROVED", { reason: "test", actor: "test" });
+    const res = await request(makeApp()).post(`/projects/${TEST_NAME}/test`).send({});
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ outcome: "FAILED_BUILD" });
+  });
+
+  it("stops a project's container even when none is running", async () => {
+    seedProject();
+    const res = await request(makeApp()).post(`/projects/${TEST_NAME}/stop`).send({});
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ wasRunning: false, running: false });
   });
 });

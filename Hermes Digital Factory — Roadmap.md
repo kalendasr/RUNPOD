@@ -1194,13 +1194,16 @@ Commands:
 /stop
 ```
 
-Natural language should also be supported.
+- [x] All commands above implemented
+- [x] Natural language support
 
 Example:
 
 ```text
 Build me a landing page for Alpha Red.
 ```
+
+See `docs/telegram-bot.md` and `apps/telegram-bot`.
 
 ---
 
