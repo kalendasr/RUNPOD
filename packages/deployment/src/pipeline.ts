@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { getProject, transition, appendLog, projectDir } from "@hermes/projects";
+import { scanForSecrets, type SecretFinding } from "@hermes/security";
 import { buildProductionImage } from "./dockerBuild.js";
 import { runContainer, stopContainer } from "./containers.js";
 import { checkHealth } from "./healthCheck.js";
@@ -60,6 +61,16 @@ export async function deployProject(name: string, options: DeployOptions = {}): 
   appendLog(name, { event: "deployment_started", tag, port });
 
   try {
+    const secretFindings = scanForSecrets(projectDir(name));
+    if (secretFindings.length > 0) {
+      appendLog(name, { event: "security_check_failed", tag, findings: secretFindings });
+      throw new Error(
+        `Security check failed: found ${secretFindings.length} potential secret(s) in generated code ` +
+          `(${secretFindings.map((f: SecretFinding) => `${f.file}:${f.line} [${f.rule}] ${f.preview}`).join(", ")})`,
+      );
+    }
+    appendLog(name, { event: "security_check_passed", tag });
+
     buildProductionImage(name, tag);
     appendLog(name, { event: "image_built", tag });
 

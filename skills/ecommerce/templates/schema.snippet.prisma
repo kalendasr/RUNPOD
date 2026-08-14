@@ -1,0 +1,46 @@
+// Add to templates/saas/prisma/schema.prisma (above the
+// @hermes:crud-models-below marker) when a project needs products/orders.
+// Follows the same conventions as the base schema: cuid() ids, createdAt
+// default(now()).
+//
+// Also add `orders Order[]` to the base schema's `User` model — the
+// `Order.user` relation below needs the back-reference, and Prisma will
+// refuse to generate a client until it's there.
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  priceCents  Int
+  currency    String      @default("usd")
+  createdAt   DateTime    @default(now())
+  orderItems  OrderItem[]
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FULFILLED
+  CANCELLED
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id])
+  status     OrderStatus @default(PENDING)
+  totalCents Int
+  currency   String      @default("usd")
+  createdAt  DateTime    @default(now())
+  items      OrderItem[]
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  order      Order   @relation(fields: [orderId], references: [id])
+  productId  String
+  product    Product @relation(fields: [productId], references: [id])
+  quantity   Int
+  unitCents  Int // price at time of purchase — never re-read Product.priceCents for a past order
+}

@@ -1,12 +1,12 @@
 {
-  "name": "@hermes/deployment",
+  "name": "@hermes/security",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "hermes-deploy": "./dist/cli.js"
+    "hermes-security": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -15,8 +15,6 @@
     "cli": "tsx src/cli.ts"
   },
   "dependencies": {
-    "@hermes/projects": "*",
-    "@hermes/security": "*",
     "commander": "^12.1.0"
   },
   "devDependencies": {

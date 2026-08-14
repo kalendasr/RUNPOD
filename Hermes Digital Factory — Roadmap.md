@@ -1212,30 +1212,32 @@ See `docs/telegram-bot.md` and `apps/telegram-bot`.
 Create reusable skills:
 
 ```text
-website
-saas
-ecommerce
-authentication
-database
-stripe
-email
-pdf
-seo
-security
-testing
-deployment
+website        [x]
+saas            [x]
+ecommerce       [x]
+authentication  [x]
+database        [x]
+stripe          [x]
+email           [x]
+pdf             [x]
+seo             [x]
+security        [x]
+testing         [x]
+deployment      [x]
 ```
 
 Every skill should contain:
 
 ```text
-SKILL.md
-templates/
-examples/
-tests/
+SKILL.md        [x]
+templates/      [x]
+examples/       [x]
+tests/          [x]
 ```
 
-Skills should be version controlled.
+Skills should be version controlled. [x]
+
+See `docs/skills.md` and `skills/`.
 
 ---
 
