@@ -70,3 +70,7 @@ venv.bak/
 # OS
 .DS_Store
 *.log
+
+# Node
+node_modules/
+*.tsbuildinfo
