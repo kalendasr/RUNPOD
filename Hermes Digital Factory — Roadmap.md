@@ -1139,16 +1139,18 @@ Add local inference.
 
 Tasks:
 
-- [ ] Configure GPU provider
-- [ ] Configure RTX 3090
-- [ ] Install inference server
-- [ ] Install coding model
-- [ ] Create AI abstraction
-- [ ] Connect factory to local model
-- [ ] Measure inference performance
-- [ ] Implement GPU start/stop
+- [x] Configure GPU provider
+- [x] Configure RTX 3090
+- [x] Install inference server
+- [x] Install coding model
+- [x] Create AI abstraction
+- [x] Connect factory to local model
+- [x] Measure inference performance
+- [x] Implement GPU start/stop
 
 The factory must continue functioning if the local GPU is unavailable.
+
+See `docs/ai-provider.md` and `packages/ai` for the implementation.
 
 ---
 
