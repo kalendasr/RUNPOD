@@ -4,6 +4,7 @@ import { scaffoldSaas } from "./scaffold.js";
 import { generateEntityCrud } from "./crud.js";
 import { npmInstall, prismaMigrate, prismaGenerate, npmBuild } from "./build.js";
 import { writeEnvFile } from "./env.js";
+import { runE2ETests } from "./e2e.js";
 import type { EntitySpec } from "./types.js";
 
 const program = new Command();
@@ -68,6 +69,21 @@ program
     const result = npmBuild(name);
     console.log(result.output);
     console.log("Build succeeded.");
+  });
+
+program
+  .command("test")
+  .argument("<name>")
+  .option("--port <port>", "port to serve the built app on (default: an automatically chosen free port)")
+  .action(async (name: string, opts: { port?: string }) => {
+    const result = await runE2ETests(name, opts.port ? Number(opts.port) : undefined);
+    console.log(result.output);
+    if (!result.passed) {
+      console.error("E2E tests failed.");
+      process.exitCode = 1;
+    } else {
+      console.log("E2E tests passed.");
+    }
   });
 
 program.parseAsync(process.argv);

@@ -14,6 +14,8 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL: process.env.HERMES_BASE_URL ?? "http://localhost:3000",
+    screenshot: "only-on-failure",
+    trace: "retain-on-failure",
   },
   projects: [
     { name: "firefox", use: { ...devices["Desktop Firefox"] } },
@@ -25,16 +27,21 @@ export default defineConfig({
 function pageTestBlock(spec: WebsiteSpec, kind: WebsiteSpec["pages"][number]): string {
   const def = pageDef(kind, spec.siteName);
   const url = def.slug ? `/${def.slug}` : "/";
-  return `test("${def.navLabel} page loads with no console errors", async ({ page }) => {
-  const errors: string[] = [];
+  return `test("${def.navLabel} page loads cleanly", async ({ page }) => {
+  const consoleErrors: string[] = [];
   page.on("console", (msg) => {
-    if (msg.type() === "error") errors.push(msg.text());
+    if (msg.type() === "error") consoleErrors.push(msg.text());
+  });
+  const failedRequests: string[] = [];
+  page.on("requestfailed", (req) => {
+    failedRequests.push(\`\${req.method()} \${req.url()}: \${req.failure()?.errorText}\`);
   });
 
   const response = await page.goto("${url}");
   expect(response?.ok()).toBe(true);
   await expect(page.locator("h1")).toBeVisible();
-  expect(errors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+  expect(failedRequests).toEqual([]);
 });
 `;
 }

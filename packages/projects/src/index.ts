@@ -1,4 +1,5 @@
 export * from "./types.js";
+export * from "./paths.js";
 export * from "./manifest.js";
 export * from "./registry.js";
 export * from "./lifecycle.js";

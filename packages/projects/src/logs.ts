@@ -3,7 +3,10 @@ import path from "node:path";
 import { logPath } from "./paths.js";
 import type { LogEntry } from "./types.js";
 
-export function appendLog(name: string, entry: Omit<LogEntry, "timestamp">): LogEntry {
+export function appendLog(
+  name: string,
+  entry: Omit<LogEntry, "timestamp"> & Record<string, unknown>,
+): LogEntry {
   const full: LogEntry = { ...entry, timestamp: new Date().toISOString() };
   const filePath = logPath(name);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
