@@ -1,8 +1,0 @@
-{
-  "input": {
-    "prompt": "A sleek red sports car drifts around a neon-lit city corner at night, cinematic product ad, dramatic lighting",
-    "num_frames": 81,
-    "num_inference_steps": 40,
-    "fps": 16
-  }
-}

@@ -1,9 +1,0 @@
-git+https://github.com/huggingface/diffusers
-transformers
-accelerate
-safetensors
-runpod
-pillow
-imageio
-imageio-ffmpeg
-huggingface_hub[hf_transfer]
