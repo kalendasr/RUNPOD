@@ -48,6 +48,26 @@ python3 infrastructure/dev/generate_serverless.py --prompt "a red bicycle" --no-
 `--no-lora` rewires the graph to read straight from the checkpoint and drops
 the `LoraLoader` node. Leaving that node in with a missing file fails the job.
 
+### Batch
+
+`--prompts-file` takes one prompt per line (blank lines and `#` comments
+ignored) and writes numbered, slug-named PNGs into `--outdir`:
+
+```bash
+python3 infrastructure/dev/generate_serverless.py \
+  --prompts-file prompts.txt --outdir ./renders --concurrency 3 --no-lora
+```
+
+- **Parallel.** `--concurrency` controls how many jobs are in flight. Serverless
+  scales workers up to the endpoint's max, so this is real parallelism, not
+  queueing — until you exceed max workers, at which point the rest queue.
+- **Resumable.** Existing output files are skipped, so a re-run only fills gaps
+  after a partial failure. `--overwrite` forces regeneration.
+- **Fault-isolated.** One failed prompt logs and the batch continues; the exit
+  code is non-zero if anything failed, with a summary at the end.
+- **Seeds.** Each prompt gets its own random seed unless `--seed` pins one,
+  in which case every image in the batch shares it.
+
 ## 4. LoRAs via network volume
 
 The worker auto-detects models placed in the standard directories on an
